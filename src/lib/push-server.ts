@@ -1,5 +1,5 @@
 // Côté serveur : envoi des notifications push (Web Push / VAPID).
-import webpush from "web-push";
+import * as webpush from "web-push";
 import { admin } from "./admin";
 import { computeNews, type NewsItem } from "./news-server";
 
