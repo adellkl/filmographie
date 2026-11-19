@@ -6,7 +6,9 @@ import {
   GoogleAuthProvider,
   setPersistence,
   onAuthStateChanged,
+  getRedirectResult,
   signInWithPopup,
+  signInWithRedirect,
   signOut as fbSignOut,
   type User,
 } from "firebase/auth";
@@ -181,7 +183,32 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(async () => {
     const fb = getFirebase();
     if (!fb) return;
-    await signInWithPopup(fb.auth, new GoogleAuthProvider());
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    // App iPhone (écran d'accueil) et mobiles : les popups sont bloquées → redirection pleine page
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    const mobile = /iphone|ipad|ipod|android/i.test(navigator.userAgent);
+    if (standalone || mobile) return signInWithRedirect(fb.auth, provider);
+    try {
+      await signInWithPopup(fb.auth, provider);
+    } catch (e) {
+      const code = (e as { code?: string }).code ?? "";
+      // Popup bloquée ou impossible : on bascule sur la redirection
+      if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment", "auth/cancelled-popup-request"].includes(code))
+        return signInWithRedirect(fb.auth, provider);
+      if (code === "auth/popup-closed-by-user") return;
+      window.dispatchEvent(new CustomEvent("auth-error", { detail: code || String(e) }));
+    }
+  }, []);
+
+  // Retour de la redirection Google : affiche l'éventuelle erreur
+  useEffect(() => {
+    const fb = getFirebase();
+    if (!fb) return;
+    getRedirectResult(fb.auth).catch((e) =>
+      window.dispatchEvent(new CustomEvent("auth-error", { detail: (e as { code?: string }).code ?? String(e) })),
+    );
   }, []);
 
   const signOut = useCallback(async () => {
