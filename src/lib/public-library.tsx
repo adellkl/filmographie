@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs, limit, onSnapshot, query, where } from "firebase/firestore";
+import { collection, doc, getDocs, limit, onSnapshot, query, where } from "firebase/firestore";
 import { getFirebase } from "./firebase";
 import { buildStatus, LibraryCtx, type Library } from "./library";
 import { ViewProvider } from "./view";
-import type { DiaryEntry, MediaList, WatchlistItem } from "./types";
+import type { DiaryEntry, HomeSettings, MediaList, WatchlistItem } from "./types";
 
 export type PublicProfile = { uid: string; handle: string; displayName: string; photoURL: string | null };
 
@@ -42,6 +42,7 @@ export function PublicLibraryProvider({
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [lists, setLists] = useState<MediaList[]>([]);
+  const [settings, setSettings] = useState<HomeSettings>({});
 
   useEffect(() => {
     const fb = getFirebase();
@@ -77,6 +78,7 @@ export function PublicLibraryProvider({
             fail,
           ),
           onSnapshot(collection(fb.db, base, "watchlist"), (s) => setWatchlist(s.docs.map((x) => x.data() as WatchlistItem).sort((a, b) => b.addedAt - a.addedAt)), fail),
+          onSnapshot(doc(fb.db, base, "settings", "home"), (s) => setSettings((s.data() as HomeSettings) ?? {}), () => {}),
           onSnapshot(collection(fb.db, base, "lists"), (s) => setLists(s.docs.map((x) => x.data() as MediaList).sort((a, b) => b.updatedAt - a.updatedAt)), fail),
         );
       })
@@ -96,6 +98,8 @@ export function PublicLibraryProvider({
       entries,
       watchlist,
       lists,
+      settings,
+      saveSettings: readOnly,
       saveList: readOnly,
       deleteList: readOnly,
       toggleListItem: readOnly,
@@ -107,7 +111,7 @@ export function PublicLibraryProvider({
       toggleWatchlist: readOnly,
       saveWatchlist: readOnly,
     }),
-    [state, entries, watchlist, lists],
+    [state, entries, watchlist, lists, settings],
   );
 
   const view = useMemo(

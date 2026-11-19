@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { computeStats, useLibrary } from "@/lib/library";
 import { usePageMotion } from "@/components/motion";
 import { Poster } from "@/components/Poster";
@@ -12,11 +12,14 @@ import { useHref, useView } from "@/lib/view";
 import { themeOf } from "@/components/themes";
 import { PagedGrid } from "@/components/PagedGrid";
 import { Reviews } from "@/components/Reviews";
+import { FeaturedPicker, keyOfEntry } from "@/components/FeaturedPicker";
 
 const fmtDate = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
 
 export default function Home() {
-  const { entries, lists, watchlist } = useLibrary();
+  const { entries, lists, watchlist, settings, saveSettings } = useLibrary();
+  const [picking, setPicking] = useState<"likes" | "best" | null>(null);
+  const closePicker = useCallback(() => setPicking(null), []);
   const { readOnly, owner } = useView();
   const who = owner?.name ?? "Adel";
   const toHref = useHref();
@@ -28,12 +31,29 @@ export default function Home() {
 
   const recent = entries;
   const reviews = entries.filter((e) => e.review);
-  const favorites = stats.unique.filter((e) => e.liked);
-  const best = stats.unique
+  const allFavorites = stats.unique.filter((e) => e.liked);
+  const allBest = stats.unique
     .filter((e) => (e.rating ?? 0) >= 5)
     .sort((a, b) => b.watchedDate.localeCompare(a.watchedDate));
+  // Sélection mise en avant (dans l'ordre choisi) ; vide = tous les titres
+  const pick = (all: typeof allBest, keys?: string[]) => {
+    if (!keys?.length) return all;
+    const byKey = new Map(all.map((e) => [keyOfEntry(e), e]));
+    const chosen = keys.map((k) => byKey.get(k)).filter((e): e is (typeof all)[number] => !!e);
+    return chosen.length ? chosen : all;
+  };
+  const favorites = pick(allFavorites, settings.featured?.likes);
+  const best = pick(allBest, settings.featured?.best);
+  const curatedLikes = favorites !== allFavorites;
+  const curatedBest = best !== allBest;
+  const chooseBtn = (which: "likes" | "best", count: number) =>
+    readOnly ? undefined : (
+      <button onClick={() => setPicking(which)} className="btn-ghost self-start">
+        {count ? `Sélection · ${count}` : "Choisir les titres"}
+      </button>
+    );
   const topLists = lists.filter((l) => l.items.length).slice(0, 3);
-  const nextUp = watchlist.slice(0, 6);
+  const nextUp = watchlist.slice(0, 12); // 2 lignes de 6
   const maxDist = Math.max(1, ...stats.dist.map((d) => d.count));
   const years = stats.byYear.slice(-8);
   const maxYear = Math.max(1, ...years.map(([, n]) => n));
@@ -82,8 +102,9 @@ export default function Home() {
       {favorites.length > 0 && (
         <section className="shell mt-24">
           <SectionHead
-            eyebrow={`Coups de cœur · ${stats.likes}`}
+            eyebrow={curatedLikes ? `Coups de cœur · sélection de ${favorites.length}` : `Coups de cœur · ${stats.likes}`}
             title={readOnly ? "Ceux qu'il ne faut pas rater." : "Tes coups de cœur."}
+            action={chooseBtn("likes", curatedLikes ? favorites.length : 0)}
           />
           <PagedGrid
             items={favorites}
@@ -101,7 +122,12 @@ export default function Home() {
           <SectionHead
             eyebrow="5 étoiles"
             title={readOnly ? "Ses chefs-d'œuvre." : "Tes chefs-d'œuvre."}
-            lede={`${best.length} titres notés 5/5${readOnly ? ` par ${who}` : ""}.`}
+            lede={
+              curatedBest
+                ? `Une sélection de ${best.length} parmi ${allBest.length} titres notés 5/5${readOnly ? ` par ${who}` : ""}.`
+                : `${allBest.length} titres notés 5/5${readOnly ? ` par ${who}` : ""}.`
+            }
+            action={chooseBtn("best", curatedBest ? best.length : 0)}
           />
           <PagedGrid
             items={best}
@@ -296,6 +322,15 @@ export default function Home() {
           </button>
         </div>
       </section>}
+      {picking && (
+        <FeaturedPicker
+          title={picking === "likes" ? "Tes coups de cœur" : "Tes chefs-d'œuvre"}
+          candidates={picking === "likes" ? allFavorites : allBest}
+          initial={(picking === "likes" ? settings.featured?.likes : settings.featured?.best) ?? []}
+          onSave={(keys) => saveSettings({ ...settings, featured: { ...settings.featured, [picking]: keys } })}
+          onClose={closePicker}
+        />
+      )}
     </div>
   );
 }

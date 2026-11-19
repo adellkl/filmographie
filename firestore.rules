@@ -24,9 +24,9 @@ service cloud.firestore {
       allow read, write: if isOwner(uid);
     }
 
-    // Lecture publique (seule) du journal, de la liste à voir et des listes, si le profil est public.
+    // Lecture publique (seule) du journal, de la liste à voir, des listes et de la sélection, si le profil est public.
     match /users/{uid}/{col}/{docId} {
-      allow read: if col in ['entries', 'watchlist', 'lists'] && isPublic(uid);
+      allow read: if col in ['entries', 'watchlist', 'lists', 'settings'] && isPublic(uid);
     }
   }
 }

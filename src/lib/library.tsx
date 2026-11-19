@@ -12,7 +12,7 @@ import {
 } from "firebase/auth";
 import { collection, deleteDoc, doc, onSnapshot, setDoc, writeBatch } from "firebase/firestore";
 import { firebaseEnabled, getFirebase } from "./firebase";
-import type { DiaryEntry, ListItem, MediaList, WatchlistItem } from "./types";
+import type { DiaryEntry, HomeSettings, ListItem, MediaList, WatchlistItem } from "./types";
 
 type Mode = "loading" | "local" | "signed-out" | "cloud" | "public";
 
@@ -41,6 +41,8 @@ export type Library = {
   entries: DiaryEntry[];
   watchlist: WatchlistItem[];
   lists: MediaList[];
+  settings: HomeSettings;
+  saveSettings: (s: HomeSettings) => Promise<void>;
   saveList: (l: MediaList) => Promise<void>;
   deleteList: (id: string) => Promise<void>;
   toggleListItem: (listId: string, item: ListItem) => Promise<void>;
@@ -59,6 +61,7 @@ const Ctx = LibraryCtx;
 const LS_ENTRIES = "cinetheque.entries";
 const LS_WATCHLIST = "cinetheque.watchlist";
 const LS_LISTS = "cinetheque.lists";
+const LS_SETTINGS = "cinetheque.settings";
 
 function readLS<T>(key: string): T[] {
   try {
@@ -112,10 +115,13 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [lists, setLists] = useState<MediaList[]>([]);
+  const [settings, setSettings] = useState<HomeSettings>({});
   const entriesRef = useRef(entries);
+  const watchlistRef = useRef(watchlist);
   useEffect(() => {
     entriesRef.current = entries;
-  }, [entries]);
+    watchlistRef.current = watchlist;
+  }, [entries, watchlist]);
 
   // Authentification
   useEffect(() => {
@@ -126,6 +132,9 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
         setEntries(readLS<DiaryEntry>(LS_ENTRIES).sort(byDateDesc));
         setWatchlist(readLS<WatchlistItem>(LS_WATCHLIST));
         setLists(readLS<MediaList>(LS_LISTS));
+        try {
+          setSettings(JSON.parse(localStorage.getItem(LS_SETTINGS) ?? "{}"));
+        } catch {}
         setMode("local");
         setLoaded(true);
       });
@@ -157,6 +166,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
     const unsubB = onSnapshot(collection(fb.db, base, "watchlist"), (snap) => {
       setWatchlist(snap.docs.map((d) => d.data() as WatchlistItem).sort((a, b) => b.addedAt - a.addedAt));
     });
+    const unsubD = onSnapshot(doc(fb.db, base, "settings", "home"), (snap) => setSettings((snap.data() as HomeSettings) ?? {}));
     const unsubC = onSnapshot(collection(fb.db, base, "lists"), (snap) => {
       setLists(snap.docs.map((d) => d.data() as MediaList).sort((a, b) => b.updatedAt - a.updatedAt));
     });
@@ -164,6 +174,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       unsubA();
       unsubB();
       unsubC();
+      unsubD();
     };
   }, [user]);
 
@@ -193,13 +204,18 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
     async (list: DiaryEntry[]) => {
       const current = new Map(entriesRef.current.map((e) => [e.id, e]));
       const merged = list.map((e) => merge(current.get(e.id), e));
+      // Un titre vu quitte « À voir » (comme sur Letterboxd)
+      const seen = new Set(merged.filter((e) => e.tmdbId).map((e) => `${e.mediaType ?? "movie"}-${e.tmdbId}`));
+      const leaving = watchlistRef.current.filter((w) => w.tmdbId && seen.has(`${w.mediaType ?? "movie"}-${w.tmdbId}`));
       const fb = getFirebase();
       if (fb && user) {
-        for (let i = 0; i < merged.length; i += 450) {
+        const ops = [
+          ...merged.map((e) => (b: ReturnType<typeof writeBatch>) => b.set(doc(fb.db, "users", user.uid, "entries", e.id), clean(e))),
+          ...leaving.map((w) => (b: ReturnType<typeof writeBatch>) => b.delete(doc(fb.db, "users", user.uid, "watchlist", w.id))),
+        ];
+        for (let i = 0; i < ops.length; i += 450) {
           const batch = writeBatch(fb.db);
-          for (const e of merged.slice(i, i + 450)) {
-            batch.set(doc(fb.db, "users", user.uid, "entries", e.id), clean(e));
-          }
+          ops.slice(i, i + 450).forEach((op) => op(batch));
           await batch.commit();
         }
       } else {
@@ -208,6 +224,12 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
           for (const e of merged) map.set(e.id, e);
           return [...map.values()];
         });
+        if (leaving.length)
+          setWatchlist((prev) => {
+            const out = prev.filter((w) => !leaving.some((l) => l.id === w.id));
+            writeLS(LS_WATCHLIST, out);
+            return out;
+          });
       }
       return merged.filter((e) => !current.has(e.id)).length;
     },
@@ -215,6 +237,30 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
   );
 
   const saveEntry = useCallback(async (e: DiaryEntry) => void (await saveEntries([e])), [saveEntries]);
+
+  // Nettoyage : un titre déjà vu n'a plus sa place dans « À voir » (une fois les données chargées)
+  const cleaned = useRef(false);
+  useEffect(() => {
+    if (!loaded || cleaned.current || (mode !== "cloud" && mode !== "local") || !watchlist.length) return;
+    cleaned.current = true;
+    const seen = new Set(entries.filter((e) => e.tmdbId).map((e) => `${e.mediaType ?? "movie"}-${e.tmdbId}`));
+    const stale = watchlist.filter((w) => w.tmdbId && seen.has(`${w.mediaType ?? "movie"}-${w.tmdbId}`));
+    if (!stale.length) return;
+    const fb = getFirebase();
+    if (fb && user) {
+      const batch = writeBatch(fb.db);
+      stale.slice(0, 450).forEach((w) => batch.delete(doc(fb.db, "users", user.uid, "watchlist", w.id)));
+      batch.commit().catch(() => (cleaned.current = false));
+    } else {
+      queueMicrotask(() =>
+        setWatchlist((prev) => {
+          const out = prev.filter((w) => !stale.some((x) => x.id === w.id));
+          writeLS(LS_WATCHLIST, out);
+          return out;
+        }),
+      );
+    }
+  }, [loaded, mode, entries, watchlist, user]);
 
   const deleteEntry = useCallback(
     async (id: string) => {
@@ -265,6 +311,21 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       return fresh.length;
     },
     [watchlist, user],
+  );
+
+  const saveSettings = useCallback(
+    async (next: HomeSettings) => {
+      const value = { ...next, updatedAt: Date.now() };
+      const fb = getFirebase();
+      if (fb && user) await setDoc(doc(fb.db, "users", user.uid, "settings", "home"), clean(value));
+      else {
+        setSettings(value);
+        try {
+          localStorage.setItem(LS_SETTINGS, JSON.stringify(value));
+        } catch {}
+      }
+    },
+    [user],
   );
 
   const saveList = useCallback(
@@ -322,6 +383,8 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       entries,
       watchlist,
       lists,
+      settings,
+      saveSettings,
       saveList,
       deleteList,
       toggleListItem,
@@ -333,7 +396,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
       toggleWatchlist,
       saveWatchlist,
     }),
-    [status, mode, loaded, user, entries, watchlist, lists, saveList, deleteList, toggleListItem, signIn, signOut, saveEntry, deleteEntry, saveEntries, toggleWatchlist, saveWatchlist],
+    [status, mode, loaded, user, entries, watchlist, lists, settings, saveSettings, saveList, deleteList, toggleListItem, signIn, signOut, saveEntry, deleteEntry, saveEntries, toggleWatchlist, saveWatchlist],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -47,6 +47,12 @@ export type MediaList = {
   updatedAt: number;
 };
 
+/** Réglages de la page d'accueil (mis en avant). Clés : `${type}-${tmdbId}`. */
+export type HomeSettings = {
+  featured?: { likes?: string[]; best?: string[] };
+  updatedAt?: number;
+};
+
 export type MediaLite = {
   id: number;
   type: MediaType;
