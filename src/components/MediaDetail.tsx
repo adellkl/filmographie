@@ -384,11 +384,15 @@ export function MediaDetail({ type, id }: { type: MediaType; id: string }) {
           {!readOnly && m && m.recommendations.length > 0 && (
             <section>
               <SectionHead eyebrow="Dans la même veine" title={type === "tv" ? "Séries proches." : "Films proches."} />
-              <div className="grid grid-cols-3 gap-x-4 gap-y-8 sm:grid-cols-4 lg:grid-cols-6">
-                {m.recommendations.map((r) => (
-                  <Poster key={r.id} tmdbId={r.id} mediaType={r.type} title={r.title} year={r.year} poster={r.poster} caption badge status />
-                ))}
-              </div>
+              <PagedGrid
+                items={m.recommendations}
+                pageSize={6}
+                keyOf={(r) => `${r.type}-${r.id}`}
+                className="grid grid-cols-3 gap-x-4 gap-y-8 sm:grid-cols-4 lg:grid-cols-6"
+                allHref={`/recherche?type=${type}`}
+                allLabel="Explorer"
+                render={(r) => <Poster tmdbId={r.id} mediaType={r.type} title={r.title} year={r.year} poster={r.poster} caption badge status />}
+              />
             </section>
           )}
         </div>

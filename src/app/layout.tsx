@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
 import "./globals.css";
@@ -7,6 +7,8 @@ import { Nav } from "@/components/Nav";
 import { Gate } from "@/components/Gate";
 import { AutoSync } from "@/components/AutoSync";
 import { SITE_NAME } from "@/lib/site";
+import { PwaRegister } from "@/components/PwaRegister";
+import { TabBar } from "@/components/TabBar";
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"], weight: ["400", "500"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"], weight: ["400"] });
@@ -16,6 +18,18 @@ const newsreader = Newsreader({ variable: "--font-newsreader", subsets: ["latin"
 export const metadata: Metadata = {
   title: { default: SITE_NAME, template: `%s · ${SITE_NAME}` },
   description: "Journal personnel de films et séries : notes, critiques, listes, à voir. Synchronisé avec Letterboxd.",
+  applicationName: SITE_NAME,
+  // iPhone : app plein écran depuis l'écran d'accueil
+  appleWebApp: { capable: true, title: "Adel", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#101010",
+  colorScheme: "dark",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover", // contenu sous l'encoche, géré par les safe-area insets
 };
 
 const columns = [
@@ -30,11 +44,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="flex min-h-full flex-col">
         <LibraryProvider>
           <AutoSync />
+          <PwaRegister />
           <Nav />
           <main className="flex-1">
             <Gate>{children}</Gate>
           </main>
-          <footer className="mt-[120px] py-24">
+          <TabBar />
+          <footer className="mt-[120px] py-24 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-24">
             <div className="shell grid gap-12 sm:grid-cols-[1fr_auto]">
               <div className="flex flex-col gap-4">
                 <span className="mono text-bone">

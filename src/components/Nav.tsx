@@ -14,6 +14,7 @@ const links = [
   { href: "/films", label: "Vus" },
   { href: "/watchlist", label: "À voir" },
   { href: "/listes", label: "Listes" },
+  { href: "/nouveautes", label: "Nouveautés" },
 ];
 
 export function Nav() {
@@ -59,7 +60,7 @@ export function Nav() {
   // Visiteur non connecté : uniquement le profil, et une petite connexion en haut à droite
   if (mode === "signed-out" || mode === "loading") {
     return (
-      <header className="sticky top-0 z-40 bg-canvas/85 backdrop-blur-md">
+      <header className="sticky top-0 z-40 bg-canvas/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
         <div className="shell flex h-16 items-center justify-between gap-6">
           <Link href={base || "/"} className="mono flex items-center gap-2 text-bone">
             {SITE_NAME}
@@ -84,7 +85,7 @@ export function Nav() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-canvas/85 backdrop-blur-md">
+      <header className="sticky top-0 z-40 bg-canvas/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
         <div className="shell flex h-16 items-center gap-6">
           <Link href={base || "/"} className="mono flex items-center gap-2 text-bone">
             {SITE_NAME}

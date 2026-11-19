@@ -52,12 +52,12 @@ export default function Home() {
         {count ? `Sélection · ${count}` : "Choisir les titres"}
       </button>
     );
-  const topLists = lists.filter((l) => l.items.length).slice(0, 3);
-  const nextUp = watchlist.slice(0, 12); // 2 lignes de 6
+  const topLists = lists.filter((l) => l.items.length);
+  const nextUp = watchlist;
   const maxDist = Math.max(1, ...stats.dist.map((d) => d.count));
   const years = stats.byYear.slice(-8);
   const maxYear = Math.max(1, ...years.map(([, n]) => n));
-  const trend = (trending?.results ?? []).filter((m) => trendType === "all" || m.type === trendType).slice(0, 12);
+  const trend = (trending?.results ?? []).filter((m) => trendType === "all" || m.type === trendType);
 
   return (
     <div ref={root}>
@@ -229,15 +229,16 @@ export default function Home() {
           <SectionHead
             eyebrow={`Listes · ${lists.length}`}
             title={readOnly ? "Ses listes." : "Tes listes."}
-            action={
-              <Link href={toHref("/listes")} className="btn-ghost self-start">
-                Toutes les listes →
-              </Link>
-            }
           />
-          <div className="grid gap-6 md:grid-cols-3">
-            {topLists.map((l) => (
-              <Link key={l.id} href={toHref(`/listes/${l.id}`)} className="card flex flex-col gap-5 p-5 transition-[border-color] duration-150 hover:border-ash">
+          <PagedGrid
+            items={topLists}
+            pageSize={3}
+            keyOf={(l) => l.id}
+            className="grid gap-6 md:grid-cols-3"
+            allHref={toHref("/listes")}
+            allLabel="Toutes les listes"
+            render={(l) => (
+              <Link href={toHref(`/listes/${l.id}`)} className="card flex flex-col gap-5 p-5 transition-[border-color] duration-150 hover:border-ash">
                 <div className="grid grid-cols-4 gap-2">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <span key={i} className="aspect-[2/3] overflow-hidden rounded-sm bg-lift">
@@ -252,8 +253,8 @@ export default function Home() {
                   <h3 className="mt-3 text-[24px] leading-tight tracking-[-0.025em] text-bone">{l.name}</h3>
                 </div>
               </Link>
-            ))}
-          </div>
+            )}
+          />
         </section>
       )}
 
@@ -263,17 +264,14 @@ export default function Home() {
           <SectionHead
             eyebrow={`À voir · ${watchlist.length}`}
             title={readOnly ? "Sa prochaine séance." : "Ta prochaine séance."}
-            action={
-              <Link href={toHref("/watchlist")} className="btn-ghost self-start">
-                Toute la liste →
-              </Link>
-            }
           />
-          <div className="grid grid-cols-3 gap-6 sm:grid-cols-6">
-            {nextUp.map((w) => (
-              <Poster key={w.id} tmdbId={w.tmdbId} mediaType={w.mediaType} title={w.title} year={w.year} poster={w.poster} caption badge />
-            ))}
-          </div>
+          <PagedGrid
+            items={nextUp}
+            keyOf={(w) => w.id}
+            allHref={toHref("/watchlist")}
+            allLabel="Toute la liste"
+            render={(w) => <Poster tmdbId={w.tmdbId} mediaType={w.mediaType} title={w.title} year={w.year} poster={w.poster} caption badge />}
+          />
         </section>
       )}
 
@@ -302,11 +300,14 @@ export default function Home() {
         {trending && !trending.configured ? (
           <Empty title="TMDB n'est pas encore branché." />
         ) : (
-          <div className="grid grid-cols-3 gap-6 sm:grid-cols-4 lg:grid-cols-6">
-            {trend.map((m) => (
-              <Poster key={`${m.type}-${m.id}`} tmdbId={m.id} mediaType={m.type} title={m.title} year={m.year} poster={m.poster} caption badge status />
-            ))}
-          </div>
+          <PagedGrid
+            key={trendType}
+            items={trend}
+            keyOf={(m) => `${m.type}-${m.id}`}
+            allHref="/recherche"
+            allLabel="Explorer"
+            render={(m) => <Poster tmdbId={m.id} mediaType={m.type} title={m.title} year={m.year} poster={m.poster} caption badge status />}
+          />
         )}
       </section>}
 
