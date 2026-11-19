@@ -29,15 +29,15 @@ export function PagedGrid<T>({
   const pages = Math.max(1, Math.ceil(items.length / pageSize));
   const current = Math.min(page, pages - 1);
   const grid = useRef<HTMLDivElement>(null);
-  const first = useRef(true);
+  const prevPage = useRef<number | null>(null);
   const shown = items.slice(current * pageSize, current * pageSize + pageSize);
 
   // Courte transition entre deux pages (pas au premier rendu : l'entrée de section s'en charge)
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
+    // Uniquement lors d'un vrai changement de page (pas au montage : l'entrée de section s'en charge)
+    const prev = prevPage.current;
+    prevPage.current = current;
+    if (prev === null || prev === current) return;
     if (!grid.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     gsap.fromTo(grid.current.children, { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.3, stagger: 0.02, ease: "power2.out" });
   }, [current]);

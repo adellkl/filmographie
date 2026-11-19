@@ -72,6 +72,7 @@ function play(l: Layers, delay = 0) {
   const all = [...l.label, ...l.title, ...l.text, ...l.controls, ...l.items];
   if (!all.length) return null;
   markShown(all);
+  all.forEach((e) => delete (e as HTMLElement).dataset.pending);
   const tl = gsap.timeline({ defaults: { ease: EASE }, delay });
   let started = false;
   const at = (overlap: string) => (started ? overlap : ((started = true), 0));
@@ -96,6 +97,13 @@ function play(l: Layers, delay = 0) {
 
 /** Filet de sécurité : rend visible ce qui serait resté masqué hors animation. */
 function rescue(root: Element) {
+  root.querySelectorAll<HTMLElement>("[data-pending]").forEach((el) => {
+    const section = el.closest("section") as HTMLElement | null;
+    if (section?.dataset.played === "1" && !gsap.getTweensOf(el).some((t) => t.progress() < 1)) {
+      delete el.dataset.pending;
+      gsap.set(el, { clearProps: CLEAR });
+    }
+  });
   root.querySelectorAll<HTMLElement>("[data-shown]").forEach((el) => {
     // une animation existe encore (en cours ou programmée) : on la laisse finir
     if (gsap.getTweensOf(el).some((t) => t.progress() < 1)) return;
@@ -121,6 +129,7 @@ export function usePageMotion(scope: RefObject<HTMLElement | null>, deps: unknow
 
       mm.add("(prefers-reduced-motion: no-preference)", () => {
         const triggers: ScrollTrigger[] = [];
+        const observers: IntersectionObserver[] = [];
         // Animations lancées par ce passage : si on est annulé avant la fin, on « dé-marque »
         const runs: { tl: gsap.core.Timeline; els: Element[]; section?: HTMLElement }[] = [];
 
@@ -144,21 +153,40 @@ export function usePageMotion(scope: RefObject<HTMLElement | null>, deps: unknow
               }
               return;
             }
-            triggers.push(
-              ScrollTrigger.create({
-                trigger: section,
-                start: "top 88%",
-                once: true,
-                onEnter: () => {
-                  if (el.dataset.played === "1") return;
-                  const r = play(layersOf(section));
-                  if (r) {
-                    el.dataset.played = "1";
-                    runs.push({ ...r, section: el });
-                  }
-                },
-              }),
+            // Masquage préalable (sections pas encore à l'écran) : évite l'effet « déjà affiché puis animé ».
+            // Les éléments sont marqués « en attente » ; ils ne restent jamais cachés (voir onEnter + filet).
+            const below = section.getBoundingClientRect().top > window.innerHeight * 0.88;
+            if (below) {
+              const l = layersOf(section);
+              const pre = [...l.label, ...l.text, ...l.controls, ...l.items];
+              pre.forEach((e) => ((e as HTMLElement).dataset.pending = "1"));
+              l.title.forEach((e) => ((e as HTMLElement).dataset.pending = "1"));
+              gsap.set(pre, { autoAlpha: 0 });
+              gsap.set(l.title, { clipPath: "inset(0 0 100% 0)" });
+            }
+            // Déclenchement fiable à l'entrée dans l'écran (IntersectionObserver)
+            const reveal = () => {
+              if (el.dataset.played === "1") return;
+              const r = play(layersOf(section));
+              el.dataset.played = "1";
+              if (r) runs.push({ ...r, section: el });
+              // Tout élément pré-masqué non repris par l'animation est rendu visible
+              section.querySelectorAll<HTMLElement>("[data-pending]").forEach((p) => {
+                delete p.dataset.pending;
+                gsap.set(p, { clearProps: CLEAR });
+              });
+            };
+            const io = new IntersectionObserver(
+              (obs) => {
+                if (obs.some((o) => o.isIntersecting)) {
+                  io.disconnect();
+                  reveal();
+                }
+              },
+              { rootMargin: "0px 0px -12% 0px" },
             );
+            io.observe(section);
+            observers.push(io);
           });
 
         /* 3 · Compteurs */
@@ -205,11 +233,13 @@ export function usePageMotion(scope: RefObject<HTMLElement | null>, deps: unknow
         return () => {
           window.clearInterval(watchdog);
           triggers.forEach((t) => t.kill());
+          observers.forEach((o) => o.disconnect());
           for (const r of runs) {
             if (r.tl.progress() >= 1) continue;
             r.els.forEach((e) => delete (e as HTMLElement).dataset.shown);
             if (r.section) delete r.section.dataset.played;
           }
+          root.querySelectorAll<HTMLElement>("[data-pending]").forEach((p) => delete p.dataset.pending);
           rescue(root);
         };
       });
