@@ -16,6 +16,7 @@ export default function FilmsPage() {
   const [q, setQ] = useState("");
   const [onlyLiked, setOnlyLiked] = useState(false);
   const [minRating, setMinRating] = useState(0);
+  const [kind, setKind] = useState<"all" | "movie" | "tv">("all");
   const root = useRef<HTMLDivElement>(null);
 
   // Filtres passés par l'URL : ?liked=1, ?min=5, ?sort=rating (liens « Tout voir » de l'accueil)
@@ -27,13 +28,19 @@ export default function FilmsPage() {
       if (sp.get("liked") === "1") setOnlyLiked(true);
       if ([4, 4.5, 5].includes(min)) setMinRating(min);
       if (s && s in sorts) setSort(s);
+      const t = sp.get("type");
+      if (t === "movie" || t === "tv") setKind(t);
     });
   }, []);
 
   const list = useMemo(() => {
     const term = q.trim().toLowerCase();
     const out = unique.filter(
-      (e) => (!term || e.title.toLowerCase().includes(term)) && (!onlyLiked || e.liked) && (!minRating || (e.rating ?? 0) >= minRating),
+      (e) =>
+        (!term || e.title.toLowerCase().includes(term)) &&
+        (!onlyLiked || e.liked) &&
+        (!minRating || (e.rating ?? 0) >= minRating) &&
+        (kind === "all" || (e.mediaType ?? "movie") === kind),
     );
     const cmp: Record<Sort, (a: (typeof out)[0], b: (typeof out)[0]) => number> = {
       recent: (a, b) => b.watchedDate.localeCompare(a.watchedDate),
@@ -42,7 +49,15 @@ export default function FilmsPage() {
       title: (a, b) => a.title.localeCompare(b.title, "fr"),
     };
     return out.sort(cmp[sort]);
-  }, [unique, q, onlyLiked, minRating, sort]);
+  }, [unique, q, onlyLiked, minRating, sort, kind]);
+
+  const counts = useMemo(
+    () => ({
+      movie: unique.filter((e) => (e.mediaType ?? "movie") === "movie").length,
+      tv: unique.filter((e) => e.mediaType === "tv").length,
+    }),
+    [unique],
+  );
 
   usePageMotion(root, [list.length]);
 
@@ -52,6 +67,19 @@ export default function FilmsPage() {
 
       <div className="mt-10 flex flex-col gap-4 border-y border-lift py-4 sm:flex-row sm:flex-wrap sm:items-center" data-in>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrer par titre…" className="input sm:max-w-xs" aria-label="Filtrer par titre" />
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Type">
+          {(
+            [
+              ["all", "Tout", unique.length],
+              ["movie", "Films", counts.movie],
+              ["tv", "Séries", counts.tv],
+            ] as const
+          ).map(([k, l, n]) => (
+            <Chip key={k} active={kind === k} onClick={() => setKind(k)}>
+              {l} <span className="tabular-nums opacity-50">{n}</span>
+            </Chip>
+          ))}
+        </div>
         <div className="flex flex-wrap gap-2">
           {(Object.keys(sorts) as Sort[]).map((k) => (
             <Chip key={k} active={sort === k} onClick={() => setSort(k)}>
