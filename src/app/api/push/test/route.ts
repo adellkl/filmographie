@@ -1,8 +1,7 @@
 // Notification de test : envoyée aux appareils de l'utilisateur connecté.
-import { admin, adminConfigured } from "@/lib/admin";
-import { pushConfigured, sendToUser } from "@/lib/push-server";
-
 export async function POST(request: Request) {
+  const { admin, adminConfigured } = await import("@/lib/admin");
+  const { pushConfigured, sendToUser } = await import("@/lib/push-server");
   if (!pushConfigured() || !adminConfigured()) return Response.json({ error: "PUSH_NOT_CONFIGURED" }, { status: 503 });
   const token = request.headers.get("authorization")?.replace(/^Bearer /, "");
   if (!token) return Response.json({ error: "UNAUTHENTICATED" }, { status: 401 });
