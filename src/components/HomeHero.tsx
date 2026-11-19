@@ -124,7 +124,7 @@ export function HomeHero({
                   Voir le journal
                 </Link>
                 <Link href={toHref("/films")} className="btn-dark h-12 px-5 text-body">
-                  Films vus
+                  Films &amp; séries vus
                 </Link>
                 <Link href={toHref("/listes")} className="btn-ghost h-12 border-x-0 border-t-0 px-1 text-body">
                   Ses listes →
