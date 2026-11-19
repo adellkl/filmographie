@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    // Profil toujours public (consultable sans connexion) : adelkl
+    function isPublic(uid) {
+      return uid == 'YaUAquzrfzbVfFJ2DhEDaekuGQa2'
+        || exists(/databases/$(database)/documents/publicProfiles/$(uid));
+    }
+
+    // Profil public : lisible par tous, modifiable par son propriétaire uniquement.
+    match /publicProfiles/{uid} {
+      allow read: if true;
+      allow create, update: if isOwner(uid)
+        && request.resource.data.handle is string
+        && request.resource.data.handle.matches('^[a-z0-9_-]{1,30}$');
+      allow delete: if isOwner(uid);
+    }
+
+    // Données privées : le propriétaire lit et écrit tout.
+    match /users/{uid}/{document=**} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Lecture publique (seule) du journal, de la liste à voir et des listes, si le profil est public.
+    match /users/{uid}/{col}/{docId} {
+      allow read: if col in ['entries', 'watchlist', 'lists'] && isPublic(uid);
+    }
+  }
+}

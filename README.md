@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# adelkl\* — journal de films
 
-## Getting Started
+Un Letterboxd perso : journal, notes, critiques, liste à voir. Next.js 16 + Tailwind 4, Firebase (Auth Google + Firestore), TMDB, animations GSAP / ScrollTrigger.
 
-First, run the development server:
+## Lancer
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+→ http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Sans configuration, l'app tourne en **mode local** (données dans le navigateur) et se synchronise déjà avec le flux public `letterboxd.com/adelkl/rss`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Configuration (`.env.local`)
 
-## Learn More
+### TMDB (recherche, fiches, affiches)
+1. Crée un compte sur themoviedb.org → Réglages → API.
+2. Colle la clé v3 dans `TMDB_API_KEY` (ou le jeton v4 dans `TMDB_READ_TOKEN`).
 
-To learn more about Next.js, take a look at the following resources:
+### Firebase (synchro multi-appareils)
+1. console.firebase.google.com → **Ajouter un projet**.
+2. **Authentication** → Méthode de connexion → active **Google**.
+3. **Firestore Database** → Créer une base (mode production).
+4. Règles Firestore : colle le contenu de `firestore.rules` (chaque utilisateur ne voit que ses données).
+5. Paramètres du projet → Vos applications → **Web** → copie la config dans les variables `NEXT_PUBLIC_FIREBASE_*`.
+6. Relance `npm run dev`, clique **Connexion**.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Données stockées : `users/{uid}/entries/{id}` et `users/{uid}/watchlist/{id}`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Import Letterboxd
+- **Automatique** : à chaque session, les ~50 dernières séances du flux RSS (notes, ♥, critiques, ID TMDB).
+- **Historique complet** : page *Synchro* → dépose le ZIP d'export (Letterboxd → Settings → Data → Export your data). Les films sont reliés à TMDB pour récupérer les affiches.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Structure
+- `src/lib/library.tsx` — état global, Firestore temps réel ou localStorage
+- `src/lib/tmdb.ts`, `src/lib/letterboxd.ts` — accès serveur TMDB / RSS
+- `src/lib/csv-import.ts` — lecture de l'export ZIP/CSV
+- `src/app/api/*` — routes TMDB (search, movie, trending, match) et Letterboxd
+- `src/components/motion.ts` — animations communes (SplitText, reveals, compteurs, parallaxe, barres)

@@ -1,26 +1,132 @@
 @import "tailwindcss";
 
+/* ───────── Design system : « terminal war room » ───────── */
+@theme {
+  --color-*: initial;
+  --color-canvas: #101010;
+  --color-lift: #1d1a18;
+  --color-ash: #3d3a39;
+  --color-graphite: #4d4947;
+  --color-granite: #8a8380;
+  --color-stone: #b8b3b0;
+  --color-bone: #eeeeee;
+  --color-chalk: #fafafa;
+  --color-ink: #101010;
+  --color-signal: #ee6018;
+  --color-metric: #a0ca92;
+  --color-transparent: transparent;
+  --color-black: #000;
+  --color-white: #fff;
+
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: var(--font-newsreader), ui-serif, Georgia, serif;
+
+  --text-caption: 12px;
+  --text-caption--line-height: 1;
+  --text-caption--letter-spacing: -0.24px;
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 1.43;
+  --text-body: 16px;
+  --text-body--line-height: 1.5;
+  --text-heading: 36px;
+  --text-heading--line-height: 1.1;
+  --text-heading--letter-spacing: -1.12px;
+  --text-heading-lg: 44px;
+  --text-heading-lg--line-height: 1.12;
+  --text-heading-lg--letter-spacing: -1.1px;
+  --text-display: 72px;
+  --text-display--line-height: 1;
+  --text-display--letter-spacing: -2.88px;
+
+  --radius-sm: 3px;
+  --radius-lg: 10px;
+  --radius-2xl: 20px;
+
+  --ease-mech: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--color-canvas);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--color-bone);
+  font-family: var(--font-sans);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-bone);
+  color: var(--color-ink);
+}
+
+* {
+  transition-timing-function: var(--ease-mech);
+}
+
+@utility btn {
+  @apply inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-sm px-[14px] text-body-sm whitespace-nowrap transition-[color,background-color,border-color] duration-150 disabled:pointer-events-none disabled:opacity-40;
+}
+
+@utility mono {
+  @apply font-mono text-caption uppercase tracking-[-0.02em];
+}
+
+@layer components {
+  .shell {
+    @apply mx-auto w-full max-w-[1200px] px-4 sm:px-6;
+  }
+  /* Libellé « instrument » */
+  .label {
+    @apply mono text-stone;
+  }
+  /* Carte sombre : définie par sa bordure, pas par sa surface */
+  .card {
+    @apply rounded-lg border border-lift;
+  }
+  /* La figure claire sur fond noir */
+  .card-bone {
+    @apply relative overflow-hidden rounded-lg bg-bone text-ink;
+  }
+  .card-bone::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.18;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .btn-dark {
+    @apply btn bg-lift text-bone hover:bg-ash;
+  }
+  .btn-light {
+    @apply btn bg-chalk text-ink hover:bg-bone;
+  }
+  .btn-ink {
+    @apply btn bg-ink text-bone hover:bg-lift;
+  }
+  .btn-ghost {
+    @apply btn rounded-none border border-ash bg-transparent text-bone hover:border-chalk hover:text-chalk;
+  }
+  .input {
+    @apply h-11 w-full rounded-sm border border-ash bg-transparent px-4 text-body text-bone outline-none transition-[border-color] duration-150 placeholder:text-graphite focus:border-stone;
+  }
+  .pulse {
+    @apply inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-signal;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
 }
